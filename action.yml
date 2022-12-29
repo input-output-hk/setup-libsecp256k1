@@ -1,0 +1,75 @@
+name: 'Setup libsecp256k1'
+description: 'Installs libsecp256k1'
+inputs:
+  github-repo:
+    description: Git repository from which to fetch the source code
+    required: true
+    default: bitcoin-core/secp256k1
+  git-ref:
+    description: Git reference in the git repository to use
+    required: true
+  prefix:
+    description: The wrapper command to use when installing.
+    required: true
+    default: ${{ github.workspace }}/extras/secp256k1
+  cache-version:
+    description: The version of the cache to use.
+    required: true
+
+outputs:
+  prefix:
+    description: "Prefix"
+    value: ${{ steps.prefix.outputs.prefix }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute installation location
+      id: prefix
+      shell: bash
+      run: |
+        if [ ${{ runner.os }} == Windows ]; then
+          echo "Is Windows"
+          SECP256K1_PREFIX="/mingw64"
+        else
+          echo "Not Windows"
+          SECP256K1_PREFIX='/usr/local'
+        fi
+        echo "SECP256K1_PREFIX=$SECP256K1_PREFIX" | tee -a "$GITHUB_ENV"
+        echo "prefix=$SECP256K1_PREFIX" >> $GITHUB_OUTPUT
+
+    - name: secp256k1 - cache
+      uses: actions/cache@v3
+      id: secp256k1-cache
+      with:
+        path: ${{ github.workspace }}/extras/sources/secp256k1
+        key: secp256k1-${{ runner.os }}/1/${{ inputs.cache-version }}
+
+    - name: secp256k1 - checkout
+      uses: actions/checkout@v2
+      if: steps.secp256k1-cache.outputs.cache-hit != 'true'
+      with:
+        repository: ${{ inputs.github-repo }}
+        ref: ${{ inputs.git-ref }}
+        path: ${{ github.workspace }}/extras/sources/secp256k1
+
+    - name: "secp256k1 - posix - install"
+      if: runner.os != 'Windows'
+      shell: bash
+      working-directory: ${{ github.workspace }}/extras/sources/secp256k1
+      env:
+        CI_SECP_FLAGS: "--prefix=${{ env.SECP256K1_PREFIX }}"
+        CI_SECP_INSTALL_CMD: sudo
+      run: bash -x "${{ github.action_path }}/build-and-install.sh"
+
+    - name: "secp256k1 - windows - install"
+      if: runner.os == 'Windows'
+      shell: pwsh
+      working-directory: ${{ github.workspace }}/extras/sources/secp256k1
+      env:
+        # Same environment as tmate action
+        MSYS2_PATH_TYPE: inherit
+        MSYSTEM: MINGW64
+        CHERE_INVOKING: 1
+        CI_SECP_FLAGS: "--prefix=${{ env.SECP256K1_PREFIX }}"
+      run: C:\\msys64\\usr\\bin\\bash.exe "${{ github.action_path }}/build-and-install.sh"
