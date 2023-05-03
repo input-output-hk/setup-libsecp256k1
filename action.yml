@@ -46,7 +46,7 @@ runs:
         key: secp256k1-${{ runner.os }}/1/${{ inputs.cache-version }}
 
     - name: secp256k1 - checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       if: steps.secp256k1-cache.outputs.cache-hit != 'true'
       with:
         repository: ${{ inputs.github-repo }}
